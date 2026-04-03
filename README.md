@@ -106,6 +106,22 @@
   bun run dev --settings '{"provider":"github-copilot"}'
   ```
 
+  You can also switch providers interactively inside the CLI:
+
+  ```text
+  /provider
+  ```
+
+  The picker shows the available providers, saves the selection to user
+  settings, and then opens the existing model picker for the selected provider.
+
+  Useful shortcuts:
+
+  - `/provider` opens the visual provider picker
+  - `/provider info` shows the current provider and any active environment override
+  - `/provider github-copilot` switches directly to a specific provider
+  - `/model` still works after provider changes and only shows models supported by the active provider
+
   Switch to a validated Copilot-hosted Claude model:
 
   ```bash
@@ -231,6 +247,21 @@
   ```bash
   bun run dev --settings '{"provider":"github-copilot"}'
   ```
+
+  现在也可以在 CLI 内通过交互式命令切换 provider：
+
+  ```text
+  /provider
+  ```
+
+  这个 picker 会列出当前可用 provider，把选择写入用户 settings，然后继续打开该 provider 对应的模型选择器。
+
+  常用命令：
+
+  - `/provider`：打开可视化 provider 选择器
+  - `/provider info`：显示当前 provider 和是否存在环境变量覆盖
+  - `/provider github-copilot`：直接切换到指定 provider
+  - `/model`：在切 provider 之后继续切模型，只显示当前 provider 支持的模型
 
   切换到已经验证可用的 Copilot Claude 模型：
 

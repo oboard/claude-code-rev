@@ -44,6 +44,8 @@ type ActiveProviderConfig = {
   isCustom: boolean
 }
 
+export type ResolvedProviderConfig = ActiveProviderConfig
+
 type BuiltinProviderId =
   | 'firstParty'
   | 'bedrock'
@@ -69,6 +71,15 @@ const BUILTIN_PROVIDER_IDS = new Set<BuiltinProviderId>([
   'github-models',
   'github-copilot',
 ])
+
+const BUILTIN_PROVIDER_ORDER: BuiltinProviderId[] = [
+  'firstParty',
+  'github-copilot',
+  'github-models',
+  'bedrock',
+  'vertex',
+  'foundry',
+]
 
 const BUILTIN_PROVIDER_CONFIGS: Record<
   'github-models' | 'github-copilot',
@@ -114,6 +125,14 @@ function getEnvSelectedProviderId(): 'bedrock' | 'vertex' | 'foundry' | undefine
       : isEnvTruthy(process.env.CLAUDE_CODE_USE_FOUNDRY)
         ? 'foundry'
         : undefined
+}
+
+export function getEnvironmentProviderOverrideId():
+  | 'bedrock'
+  | 'vertex'
+  | 'foundry'
+  | undefined {
+  return getEnvSelectedProviderId()
 }
 
 export function isBuiltinProviderId(id: string): id is BuiltinProviderId {
@@ -228,23 +247,26 @@ export function getConfiguredProviderId(): string | undefined {
   return getInitialSettings().provider
 }
 
-export function getActiveProviderConfig(): ActiveProviderConfig {
-  const envProviderId = getEnvSelectedProviderId()
-  if (envProviderId) {
-    return getBuiltinProviderConfig(envProviderId)
-  }
+export function getStoredProviderId(): string | undefined {
+  return getInitialSettings().provider
+}
 
-  const settings = getInitialSettings()
-  const providerId = settings.provider
-  const configuredProviders = getConfiguredProviders()
+export function normalizeProviderSettingValue(
+  providerId: string,
+): string | undefined {
+  return providerId === 'firstParty' ? undefined : providerId
+}
 
+export function getProviderConfigById(
+  providerId: string | undefined,
+): ActiveProviderConfig {
   if (!providerId) {
     return getBuiltinProviderConfig('firstParty')
   }
 
-  if (
-    isBuiltinProviderId(providerId)
-  ) {
+  const configuredProviders = getConfiguredProviders()
+
+  if (isBuiltinProviderId(providerId)) {
     const builtin = getBuiltinProviderConfig(providerId)
     const configured = configuredProviders[providerId]
     return configured
@@ -279,6 +301,43 @@ export function getActiveProviderConfig(): ActiveProviderConfig {
     resource: configured.resource,
     isCustom: true,
   }
+}
+
+export function getAllProviderConfigs(): ActiveProviderConfig[] {
+  const customProviderIds = Object.keys(getConfiguredProviders())
+    .filter(providerId => !isBuiltinProviderId(providerId))
+    .sort((a, b) => a.localeCompare(b))
+
+  return [
+    ...BUILTIN_PROVIDER_ORDER.map(providerId => getProviderConfigById(providerId)),
+    ...customProviderIds.map(providerId => getProviderConfigById(providerId)),
+  ]
+}
+
+export function getSuggestedModelForProvider(
+  providerId: string,
+  currentModel: string | null | undefined,
+): string | null {
+  const provider = getProviderConfigById(providerId)
+
+  if (
+    currentModel !== undefined &&
+    currentModel !== null &&
+    (!provider.models || provider.models.includes(currentModel))
+  ) {
+    return currentModel
+  }
+
+  return provider.defaultModel ?? null
+}
+
+export function getActiveProviderConfig(): ActiveProviderConfig {
+  const envProviderId = getEnvSelectedProviderId()
+  if (envProviderId) {
+    return getBuiltinProviderConfig(envProviderId)
+  }
+
+  return getProviderConfigById(getInitialSettings().provider)
 }
 
 export function getProviderDisplayName(): string {

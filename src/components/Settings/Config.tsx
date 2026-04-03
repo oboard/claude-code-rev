@@ -19,7 +19,9 @@ import { isBridgeEnabled } from '../../bridge/bridgeEnabled.js';
 import { ThemePicker } from '../ThemePicker.js';
 import { useAppState, useSetAppState, useAppStateStore } from '../../state/AppState.js';
 import { ModelPicker } from '../ModelPicker.js';
+import { ProviderSelectionFlow, type ProviderSelectionResult } from '../ProviderPicker.js';
 import { modelDisplayString, isOpus1mMergeEnabled } from '../../utils/model/model.js';
+import { getActiveProviderConfig, getEnvironmentProviderOverrideId, normalizeProviderSettingValue } from '../../utils/model/providerConfig.js';
 import { isBilledAsExtraUsage } from '../../utils/extraUsage.js';
 import { ClaudeMdExternalIncludesDialog } from '../ClaudeMdExternalIncludesDialog.js';
 import { ChannelDowngradeDialog, type ChannelDowngradeChoice } from '../ChannelDowngradeDialog.js';
@@ -81,7 +83,7 @@ type Setting = (SettingBase & {
   onChange(value: string): void;
   type: 'managedEnum';
 });
-type SubMenu = 'Theme' | 'Model' | 'TeammateModel' | 'ExternalIncludes' | 'OutputStyle' | 'ChannelDowngrade' | 'Language' | 'EnableAutoUpdates';
+type SubMenu = 'Theme' | 'Provider' | 'Model' | 'TeammateModel' | 'ExternalIncludes' | 'OutputStyle' | 'ChannelDowngrade' | 'Language' | 'EnableAutoUpdates';
 export function Config({
   onClose,
   context,
@@ -200,6 +202,9 @@ export function Config({
   const memoryFiles = React.use(getMemoryFiles(true));
   const shouldShowExternalIncludesToggle = hasExternalClaudeMdIncludes(memoryFiles);
   const autoUpdaterDisabledReason = getAutoUpdaterDisabledReason();
+  const activeProviderConfig = getActiveProviderConfig();
+  const envOverrideProviderId = getEnvironmentProviderOverrideId();
+  const providerMenuValue = envOverrideProviderId ? `${activeProviderConfig.name} (env override)` : activeProviderConfig.name;
   function onChangeMainModelConfig(value: string | null): void {
     const previousModel = mainLoopModel;
     logEvent('tengu_config_model_changed', {
@@ -229,6 +234,31 @@ export function Config({
       };
     });
   }
+  const handleProviderSelectionComplete = useCallback((result: ProviderSelectionResult) => {
+    setShowSubmenu(null);
+    setTabsHidden(false);
+    if (!result.changed) {
+      return;
+    }
+    isDirty.current = true;
+    setSettingsData(prev => ({
+      ...prev,
+      provider: normalizeProviderSettingValue(result.providerId)
+    }));
+    setChanges(prev_1 => {
+      const nextChanges = {
+        ...prev_1,
+        provider: result.savedOnly && result.envOverrideName ? `${result.providerName} (saved; current session still uses ${result.envOverrideName})` : result.providerName
+      };
+      if (!result.savedOnly && (mainLoopModel !== result.model || mainLoopModelForSession !== null)) {
+        nextChanges.model = modelDisplayString(result.model) + (isBilledAsExtraUsage(result.model, false, isOpus1mMergeEnabled()) ? ' · Billed as extra usage' : '');
+      }
+      if (result.wasFastModeDisabled) {
+        nextChanges['Fast mode'] = 'OFF';
+      }
+      return nextChanges;
+    });
+  }, [mainLoopModel, mainLoopModelForSession, setTabsHidden]);
   function onChangeVerbose(value_0: boolean): void {
     // Update the global config to persist the setting
     saveGlobalConfig(current => ({
@@ -808,6 +838,12 @@ export function Config({
       });
     }
   }, {
+    id: 'provider',
+    label: 'Provider',
+    value: providerMenuValue,
+    type: 'managedEnum' as const,
+    onChange() {}
+  }, {
     id: 'model',
     label: 'Model',
     value: mainLoopModel === null ? 'Default (recommended)' : mainLoopModel,
@@ -1221,7 +1257,8 @@ export function Config({
       permissions: iu?.permissions === undefined ? undefined : {
         ...iu.permissions,
         defaultMode: iu.permissions.defaultMode
-      }
+      },
+      provider: iu?.provider
     });
     // AppState: batch-restore all possibly-touched fields.
     const ia = initialAppState;
@@ -1297,12 +1334,16 @@ export function Config({
       }
       return;
     }
-    if (setting_0.id === 'theme' || setting_0.id === 'model' || setting_0.id === 'teammateDefaultModel' || setting_0.id === 'showExternalIncludesDialog' || setting_0.id === 'outputStyle' || setting_0.id === 'language') {
+    if (setting_0.id === 'theme' || setting_0.id === 'provider' || setting_0.id === 'model' || setting_0.id === 'teammateDefaultModel' || setting_0.id === 'showExternalIncludesDialog' || setting_0.id === 'outputStyle' || setting_0.id === 'language') {
       // managedEnum items open a submenu — isDirty is set by the submenu's
       // completion callback, not here (submenu may be cancelled).
       switch (setting_0.id) {
         case 'theme':
           setShowSubmenu('Theme');
+          setTabsHidden(true);
+          return;
+        case 'provider':
+          setShowSubmenu('Provider');
           setTabsHidden(true);
           return;
         case 'model':
@@ -1466,6 +1507,17 @@ export function Config({
               </Byline>
             </Text>
           </Box>
+        </> : showSubmenu === 'Provider' ? <>
+          <ProviderSelectionFlow onComplete={handleProviderSelectionComplete} onCancel={() => {
+        setShowSubmenu(null);
+        setTabsHidden(false);
+      }} />
+          <Text dimColor>
+            <Byline>
+              <KeyboardShortcutHint shortcut="Enter" action="confirm" />
+              <ConfigurableShortcutHint action="confirm:no" context="Settings" fallback="Esc" description="cancel" />
+            </Byline>
+          </Text>
         </> : showSubmenu === 'Model' ? <>
           <ModelPicker initial={mainLoopModel} onSelect={(model_0, _effort) => {
         isDirty.current = true;
