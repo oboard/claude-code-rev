@@ -67,8 +67,8 @@ function getProviderDescription(provider: ResolvedProviderConfig): string {
       return 'Azure AI Foundry resource and credentials'
     case 'anthropic-compatible':
       return provider.baseURL
-        ? `Custom Anthropic-compatible provider · ${provider.baseURL}`
-        : 'Custom Anthropic-compatible provider'
+        ? `${provider.isCustom ? 'Custom ' : ''}Anthropic-compatible provider · ${provider.baseURL}`
+        : `${provider.isCustom ? 'Custom ' : ''}Anthropic-compatible provider`
     case 'openai-compatible':
       return provider.baseURL
         ? `Custom OpenAI-compatible provider · ${provider.baseURL}`
