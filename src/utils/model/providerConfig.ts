@@ -48,6 +48,8 @@ export type ResolvedProviderConfig = ActiveProviderConfig
 
 type BuiltinProviderId =
   | 'firstParty'
+  | 'minimax'
+  | 'minimax-cn'
   | 'bedrock'
   | 'vertex'
   | 'foundry'
@@ -56,6 +58,8 @@ type BuiltinProviderId =
 
 const BUILTIN_PROVIDER_NAMES: Record<BuiltinProviderId, string> = {
   firstParty: 'Anthropic',
+  minimax: 'MiniMax',
+  'minimax-cn': 'MiniMax (China)',
   bedrock: 'Amazon Bedrock',
   vertex: 'Google Vertex AI',
   foundry: 'Azure AI Foundry',
@@ -65,6 +69,8 @@ const BUILTIN_PROVIDER_NAMES: Record<BuiltinProviderId, string> = {
 
 const BUILTIN_PROVIDER_IDS = new Set<BuiltinProviderId>([
   'firstParty',
+  'minimax',
+  'minimax-cn',
   'bedrock',
   'vertex',
   'foundry',
@@ -74,6 +80,8 @@ const BUILTIN_PROVIDER_IDS = new Set<BuiltinProviderId>([
 
 const BUILTIN_PROVIDER_ORDER: BuiltinProviderId[] = [
   'firstParty',
+  'minimax',
+  'minimax-cn',
   'github-copilot',
   'github-models',
   'bedrock',
@@ -82,12 +90,26 @@ const BUILTIN_PROVIDER_ORDER: BuiltinProviderId[] = [
 ]
 
 const BUILTIN_PROVIDER_CONFIGS: Record<
-  'github-models' | 'github-copilot',
+  'minimax' | 'minimax-cn' | 'github-models' | 'github-copilot',
   Pick<
     ActiveProviderConfig,
     'type' | 'baseURL' | 'authTokenEnv' | 'defaultModel' | 'models' | 'smallFastModel'
   >
 > = {
+  minimax: {
+    type: 'anthropic-compatible',
+    baseURL: 'https://api.minimax.io/anthropic',
+    authTokenEnv: 'MINIMAX_API_KEY',
+    defaultModel: 'MiniMax-M3',
+    models: ['MiniMax-M3', 'MiniMax-M2.7'],
+  },
+  'minimax-cn': {
+    type: 'anthropic-compatible',
+    baseURL: 'https://api.minimaxi.com/anthropic',
+    authTokenEnv: 'MINIMAX_API_KEY',
+    defaultModel: 'MiniMax-M3',
+    models: ['MiniMax-M3', 'MiniMax-M2.7'],
+  },
   'github-models': {
     type: 'github-models',
     baseURL: 'https://models.github.ai/inference',
@@ -195,7 +217,12 @@ function getBuiltinProviderConfig(id: BuiltinProviderId): ActiveProviderConfig {
     }
   }
 
-  if (id === 'github-models' || id === 'github-copilot') {
+  if (
+    id === 'minimax' ||
+    id === 'minimax-cn' ||
+    id === 'github-models' ||
+    id === 'github-copilot'
+  ) {
     const config = BUILTIN_PROVIDER_CONFIGS[id]
     return {
       id,
