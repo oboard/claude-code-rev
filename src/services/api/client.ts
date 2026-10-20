@@ -1,5 +1,6 @@
 import Anthropic, { type ClientOptions } from '@anthropic-ai/sdk'
 import { randomUUID } from 'crypto'
+import { normalizeMiniMaxRequest } from './minimaxRequest.js'
 import type { GoogleAuth } from 'google-auth-library'
 import { createOpenAICompatibleClient } from 'src/services/api/openaiCompatibleClient.js'
 import {
@@ -341,10 +342,14 @@ export async function getAnthropicClient({
   const clientConfig: ConstructorParameters<typeof Anthropic>[0] = {
     apiKey: isClaudeAISubscriber()
       ? null
-      : apiKey || getAnthropicApiKey() || getConfiguredProviderApiKey(),
+      : apiKey || (['minimax', 'minimax-cn'].includes(activeProvider.id)
+          ? getConfiguredProviderApiKey() ?? null
+          : getAnthropicApiKey() || getConfiguredProviderApiKey()),
     authToken: isClaudeAISubscriber()
       ? getClaudeAIOAuthTokens()?.accessToken
-      : undefined,
+      : ['minimax', 'minimax-cn'].includes(activeProvider.id)
+        ? getConfiguredProviderAuthToken()
+        : undefined,
     // Set baseURL from OAuth config when using staging OAuth
     ...(process.env.USER_TYPE === 'ant' &&
     isEnvTruthy(process.env.USE_STAGING_OAUTH)
@@ -432,6 +437,6 @@ function buildFetch(
     } catch {
       // never let logging crash the fetch
     }
-    return inner(input, { ...init, headers })
+    return inner(input, normalizeMiniMaxRequest(input, { ...init, headers }))
   }
 }

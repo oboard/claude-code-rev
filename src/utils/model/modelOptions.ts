@@ -32,7 +32,7 @@ import {
 } from './model.js'
 import { has1mContext } from '../context.js'
 import { getGlobalConfig } from '../config.js'
-import { getConfiguredCustomModels } from './providerConfig.js'
+import { getActiveProviderConfig, getConfiguredCustomModels } from './providerConfig.js'
 
 // @[MODEL LAUNCH]: Update all the available and default model option strings below.
 
@@ -518,8 +518,18 @@ export function getModelOptions(fastMode = false): ModelOption[] {
     })
   }
 
-  // Append additional model options fetched during bootstrap
+  // Append additional model options fetched during bootstrap. Preset MiniMax
+  // choices stay current; explicitly configured and saved models are added separately.
+  const provider = getActiveProviderConfig()
   for (const opt of getGlobalConfig().additionalModelOptionsCache ?? []) {
+    if (
+      (provider.id === 'minimax' || provider.id === 'minimax-cn') &&
+      typeof opt.value === 'string' &&
+      opt.value.startsWith('MiniMax-') &&
+      opt.value !== 'MiniMax-M3.1-Flash' && opt.value !== 'MiniMax-M3'
+    ) {
+      continue
+    }
     if (!options.some(existing => existing.value === opt.value)) {
       options.push(opt)
     }

@@ -123,6 +123,9 @@ export function getDefaultOpusModel(): ModelName {
   if (process.env.ANTHROPIC_DEFAULT_OPUS_MODEL) {
     return process.env.ANTHROPIC_DEFAULT_OPUS_MODEL
   }
+  if (['minimax', 'minimax-cn'].includes(getActiveProviderConfig().id)) {
+    return getConfiguredProviderModel('defaultModel')!
+  }
   // 3P providers (Bedrock, Vertex, Foundry) — kept as a separate branch
   // even when values match, since 3P availability lags firstParty and
   // these will diverge again at the next model launch.
@@ -137,6 +140,9 @@ export function getDefaultSonnetModel(): ModelName {
   if (process.env.ANTHROPIC_DEFAULT_SONNET_MODEL) {
     return process.env.ANTHROPIC_DEFAULT_SONNET_MODEL
   }
+  if (['minimax', 'minimax-cn'].includes(getActiveProviderConfig().id)) {
+    return getConfiguredProviderModel('defaultModel')!
+  }
   // Default to Sonnet 4.5 for 3P since they may not have 4.6 yet
   if (getAPIProvider() !== 'firstParty') {
     return getModelStrings().sonnet45
@@ -150,6 +156,9 @@ export function getDefaultHaikuModel(): ModelName {
     return process.env.ANTHROPIC_DEFAULT_HAIKU_MODEL
   }
 
+  if (['minimax', 'minimax-cn'].includes(getActiveProviderConfig().id)) {
+    return getConfiguredProviderModel('smallFastModel')!
+  }
   // Haiku 4.5 is available on all platforms (first-party, Foundry, Bedrock, Vertex)
   return getModelStrings().haiku45
 }

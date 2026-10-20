@@ -100,15 +100,17 @@ const BUILTIN_PROVIDER_CONFIGS: Record<
     type: 'anthropic-compatible',
     baseURL: 'https://api.minimax.io/anthropic',
     authTokenEnv: 'MINIMAX_API_KEY',
-    defaultModel: 'MiniMax-M3',
-    models: ['MiniMax-M3', 'MiniMax-M2.7'],
+    defaultModel: 'MiniMax-M3.1-Flash',
+    smallFastModel: 'MiniMax-M3.1-Flash',
+    models: ['MiniMax-M3.1-Flash', 'MiniMax-M3'],
   },
   'minimax-cn': {
     type: 'anthropic-compatible',
     baseURL: 'https://api.minimaxi.com/anthropic',
     authTokenEnv: 'MINIMAX_API_KEY',
-    defaultModel: 'MiniMax-M3',
-    models: ['MiniMax-M3', 'MiniMax-M2.7'],
+    defaultModel: 'MiniMax-M3.1-Flash',
+    smallFastModel: 'MiniMax-M3.1-Flash',
+    models: ['MiniMax-M3.1-Flash', 'MiniMax-M3'],
   },
   'github-models': {
     type: 'github-models',
@@ -165,7 +167,11 @@ export function resolveConfiguredProviderType(
   id: string,
   provider: ProviderConfig | undefined,
 ): ConfiguredProviderType {
-  return provider?.type ?? (isBuiltinProviderId(id) ? id : 'anthropic-compatible')
+  return provider?.type ?? (
+    id === 'minimax' || id === 'minimax-cn'
+      ? 'anthropic-compatible'
+      : isBuiltinProviderId(id) ? id : 'anthropic-compatible'
+  )
 }
 
 export function isOpenAICompatibleProviderType(
@@ -350,7 +356,10 @@ export function getSuggestedModelForProvider(
   if (
     currentModel !== undefined &&
     currentModel !== null &&
-    (!provider.models || provider.models.includes(currentModel))
+    (!provider.models ||
+      provider.models.includes(currentModel) ||
+      ((providerId === 'minimax' || providerId === 'minimax-cn') &&
+        (getStoredProviderId() === providerId || currentModel.startsWith('MiniMax-'))))
   ) {
     return currentModel
   }

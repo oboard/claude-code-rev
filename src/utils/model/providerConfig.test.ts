@@ -33,8 +33,9 @@ describe('MiniMax provider presets', () => {
       name,
       baseURL,
       authTokenEnv: 'MINIMAX_API_KEY',
-      defaultModel: 'MiniMax-M3',
-      models: ['MiniMax-M3', 'MiniMax-M2.7'],
+      defaultModel: 'MiniMax-M3.1-Flash',
+      smallFastModel: 'MiniMax-M3.1-Flash',
+      models: ['MiniMax-M3.1-Flash', 'MiniMax-M3'],
       isCustom: false,
     })
   })
@@ -44,6 +45,7 @@ describe('MiniMax provider presets', () => {
 
     expect(providerIds).toContain('minimax')
     expect(providerIds).toContain('minimax-cn')
-    expect(getSuggestedModelForProvider('minimax', null)).toBe('MiniMax-M3')
+    expect(getSuggestedModelForProvider('minimax', null)).toBe('MiniMax-M3.1-Flash')
+    expect(getSuggestedModelForProvider('minimax', 'MiniMax-M2.7')).toBe('MiniMax-M2.7')
   })
 })

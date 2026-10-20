@@ -1713,7 +1713,9 @@ async function* queryModel(
       ...(useBetas && { betas: betasParams }),
       metadata: getAPIMetadata(),
       max_tokens: maxOutputTokens,
-      thinking,
+      thinking: thinking ?? (options.model === 'MiniMax-M3' && !hasThinking
+        ? { type: 'disabled' as const }
+        : undefined),
       ...(temperature !== undefined && { temperature }),
       ...(contextManagement &&
         useBetas &&

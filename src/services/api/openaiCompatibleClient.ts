@@ -1,4 +1,5 @@
 import type { ClientOptions } from '@anthropic-ai/sdk'
+import { isDirectMiniMaxTextRequest } from './minimaxRequest.js'
 import {
   APIConnectionError,
   APIConnectionTimeoutError,
@@ -34,6 +35,7 @@ type OpenAIChatCompletionChunk = {
     delta?: {
       role?: string
       content?: string | null
+      reasoning_content?: string | null
       tool_calls?: Array<{
         index?: number
         id?: string
@@ -58,6 +60,7 @@ type OpenAIChatCompletionResponse = {
     message?: {
       role?: string
       content?: string | null
+      reasoning_content?: string | null
       tool_calls?: Array<{
         id?: string
         function?: {
@@ -87,7 +90,7 @@ type PromiseWithResponse<T> = Promise<T> & {
 
 type OpenBlock =
   | {
-      kind: 'text'
+      kind: 'text' | 'thinking'
       index: number
       closed: boolean
     }
@@ -210,6 +213,7 @@ function flattenSystemPrompt(system: unknown): string | undefined {
 function anthropicMessagesToOpenAI(
   system: unknown,
   messages: unknown,
+  preserveReasoning = false,
 ): Array<Record<string, unknown>> {
   const out: Array<Record<string, unknown>> = []
   const systemPrompt = flattenSystemPrompt(system)
@@ -269,6 +273,9 @@ function anthropicMessagesToOpenAI(
           role: 'assistant',
           content: textParts.length > 0 ? textParts.join('\n') : null,
           ...(toolCalls.length > 0 && { tool_calls: toolCalls }),
+          ...(preserveReasoning ? { reasoning_content: content
+            .filter(block => block?.type === 'thinking')
+            .map(block => block.thinking ?? '').join('') } : {}),
         })
       }
       continue
@@ -382,6 +389,7 @@ function anthropicToolChoiceToOpenAI(toolChoice: unknown): unknown {
 
 function openAIMessageToAnthropicContent(message: {
   content?: null | string
+  reasoning_content?: null | string
   tool_calls?: Array<{
     id?: string
     function?: {
@@ -389,8 +397,11 @@ function openAIMessageToAnthropicContent(message: {
       arguments?: string
     }
   }>
-}): Array<Record<string, unknown>> {
+}, preserveReasoning = false): Array<Record<string, unknown>> {
   const content: Array<Record<string, unknown>> = []
+  if (preserveReasoning && message.reasoning_content) {
+    content.push({ type: 'thinking', thinking: message.reasoning_content, signature: '' })
+  }
   if (typeof message.content === 'string' && message.content.length > 0) {
     content.push({ type: 'text', text: message.content })
   }
@@ -415,6 +426,7 @@ function openAIResponseToAnthropicMessage(
   response: OpenAIChatCompletionResponse,
   model: string,
   requestId: null | string,
+  preserveReasoning = false,
 ) {
   const choice = response.choices?.[0]
   const message = choice?.message ?? {}
@@ -425,7 +437,7 @@ function openAIResponseToAnthropicMessage(
     type: 'message',
     role: 'assistant',
     model: response.model ?? model,
-    content: openAIMessageToAnthropicContent(message),
+    content: openAIMessageToAnthropicContent(message, preserveReasoning),
     stop_reason:
       hasToolCalls && (mappedStopReason === null || mappedStopReason === 'end_turn')
         ? 'tool_use'
@@ -488,6 +500,7 @@ async function* parseServerSentEvents(response: Response) {
 function createOpenAIEventStream(
   response: Response,
   model: string,
+  preserveReasoning = false,
 ): AsyncIterable<unknown> & { controller: AbortController } {
   const controller = new AbortController()
 
@@ -585,6 +598,25 @@ function createOpenAIEventStream(
       if (!choice) continue
       const delta = choice.delta ?? {}
       finishReason = choice.finish_reason ?? finishReason
+
+      if (preserveReasoning && delta.reasoning_content) {
+        let block = openBlocks.find(block => block.kind === 'thinking' && !block.closed)
+        if (!block) {
+          block = { kind: 'thinking', index: nextIndex++, closed: false }
+          openBlocks.push(block)
+          yield { type: 'content_block_start', index: block.index,
+            content_block: { type: 'thinking', thinking: '', signature: '' } }
+        }
+        yield { type: 'content_block_delta', index: block.index,
+          delta: { type: 'thinking_delta', thinking: delta.reasoning_content } }
+      }
+      if (preserveReasoning && (delta.content || delta.tool_calls?.length)) {
+        const block = openBlocks.find(block => block.kind === 'thinking' && !block.closed)
+        if (block) {
+          block.closed = true
+          yield { type: 'content_block_stop', index: block.index }
+        }
+      }
 
       if (typeof delta.content === 'string' && delta.content.length > 0) {
         const block = getTextBlock()
@@ -789,13 +821,20 @@ export function createOpenAICompatibleClient(
   ) => {
     const promise = (async (): Promise<ResponseEnvelope<unknown>> => {
       const url = joinUrl(baseURL, 'chat/completions')
+      const isMiniMax = isDirectMiniMaxTextRequest(new URL(url), params.model)
       const body = {
         model: params.model,
-        messages: anthropicMessagesToOpenAI(params.system, params.messages),
+        messages: anthropicMessagesToOpenAI(params.system, params.messages, isMiniMax),
         tools: anthropicToolsToOpenAI(params.tools),
         tool_choice: anthropicToolChoiceToOpenAI(params.tool_choice),
         stream: params.stream === true,
         max_tokens: params.max_tokens,
+        ...(isMiniMax
+          ? {
+              thinking: params.thinking,
+              reasoning_effort: (params.output_config as { effort?: unknown } | undefined)?.effort,
+            }
+          : {}),
         ...(typeof params.temperature === 'number'
           ? { temperature: params.temperature }
           : {}),
@@ -831,7 +870,7 @@ export function createOpenAICompatibleClient(
 
       if (params.stream === true) {
         return {
-          data: createOpenAIEventStream(response, String(params.model ?? '')),
+          data: createOpenAIEventStream(response, String(params.model ?? ''), isMiniMax),
           request_id: requestId,
           response,
         }
@@ -843,6 +882,7 @@ export function createOpenAICompatibleClient(
           json,
           String(params.model ?? ''),
           requestId,
+          isMiniMax,
         ),
         request_id: requestId,
         response,

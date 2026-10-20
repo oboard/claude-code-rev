@@ -88,6 +88,7 @@ export function getRainbowColor(
 // TODO(inigo): add support for probing unknown models via API error detection
 // Provider-aware thinking support detection (aligns with modelSupportsISP in betas.ts)
 export function modelSupportsThinking(model: string): boolean {
+  if (model === 'MiniMax-M3.1-Flash' || model === 'MiniMax-M3') return true
   const supported3P = get3PModelCapabilityOverride(model, 'thinking')
   if (supported3P !== undefined) {
     return supported3P
@@ -111,6 +112,7 @@ export function modelSupportsThinking(model: string): boolean {
 
 // @[MODEL LAUNCH]: Add the new model to the allowlist if it supports adaptive thinking.
 export function modelSupportsAdaptiveThinking(model: string): boolean {
+  if (model === 'MiniMax-M3.1-Flash' || model === 'MiniMax-M3') return true
   const supported3P = get3PModelCapabilityOverride(model, 'adaptive_thinking')
   if (supported3P !== undefined) {
     return supported3P

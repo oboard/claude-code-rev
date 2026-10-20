@@ -120,6 +120,8 @@ function isOpenAICompatibleProviderActive(): boolean {
 /** Whether we are supporting direct 1P auth. */
 // this code is closely related to getAuthTokenSource
 export function isAnthropicAuthEnabled(): boolean {
+  // MiniMax presets authenticate with their own provider credentials.
+  if (['minimax', 'minimax-cn'].includes(getActiveProviderConfig().id)) return false
   // --bare: API-key-only, never OAuth.
   if (isBareMode()) return false
 
